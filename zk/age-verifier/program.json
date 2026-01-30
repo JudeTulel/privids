@@ -1,0 +1,6 @@
+{
+    "program": "age_verifier.aleo",
+    "version": "0.0.0",
+    "description": "ZK Age Verification Circuit",
+    "license": "MIT"
+}

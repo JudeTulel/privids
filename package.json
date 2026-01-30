@@ -1,26 +1,24 @@
 {
   "name": "prividocs",
-  "version": "0.1.0",
-  "private": true,
+  "version": "1.0.0",
+  "description": "This repository contains a Privacy-First Video Platform POC that uses **Alle** and **Zero-Knowledge Proofs (ZKP)** to gate content based on age without revealing user identity.",
+  "main": "index.js",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JudeTulel/privids.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/JudeTulel/privids/issues"
+  },
+  "homepage": "https://github.com/JudeTulel/privids#readme",
   "dependencies": {
-    "next": "16.1.4",
-    "react": "19.2.3",
-    "react-dom": "19.2.3"
-  },
-  "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "16.1.4",
-    "tailwindcss": "^4",
-    "typescript": "^5"
+    "@aleohq/sdk": "^0.6.9"
   }
 }
