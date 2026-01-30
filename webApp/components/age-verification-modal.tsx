@@ -46,7 +46,6 @@ export default function AgeVerificationModal({
       const result = await generateAgeProof(
         ageThreshold,
         videoTitle,
-        userAddress,
         mockCredentialProvider
       )
 
@@ -112,8 +111,8 @@ export default function AgeVerificationModal({
                           (range === '13-17' && ageThreshold > 17)
                         }
                         className={`p-3 rounded-lg border text-sm font-medium transition-all ${selectedAge === range
-                            ? 'border-accent bg-accent/10 text-accent'
-                            : 'border-border text-foreground hover:border-accent/50'
+                          ? 'border-accent bg-accent/10 text-accent'
+                          : 'border-border text-foreground hover:border-accent/50'
                           } ${(range === 'Under 13' && ageThreshold > 0) ||
                             (range === '13-17' && ageThreshold > 17)
                             ? 'opacity-50 cursor-not-allowed'

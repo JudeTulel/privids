@@ -9,6 +9,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@aleohq/sdk": "^0.6.9",
     "@demox-labs/aleo-wallet-adapter-base": "^0.0.23",
     "@demox-labs/aleo-wallet-adapter-leo": "^0.0.25",
     "@demox-labs/aleo-wallet-adapter-react": "^0.0.22",

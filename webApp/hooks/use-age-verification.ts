@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react'
-import { generateAgeProof, BirthCredential } from '@/lib/age-verification'
+import { generateAgeProof, BirthCredential, mockCredentialProvider } from '@/lib/age-verification'
 
 export interface VerificationState {
   isRequired: boolean
@@ -11,16 +11,7 @@ export interface VerificationState {
   isLoading: boolean
 }
 
-// Mock credential provider - in a real app, this prompts the user's wallet
-const mockCredentialProvider = async (): Promise<BirthCredential> => {
-  // Simulate wallet delay
-  await new Promise(resolve => setTimeout(resolve, 1000));
-  return {
-    birthTimestamp: Math.floor(Date.now() / 1000) - 631139040, // ~20 years ago
-    signature: "sign_mock_signature_of_birth_timestamp",
-    issuer: "aleo1_issuer_address_mock"
-  };
-};
+
 
 export function useAgeVerification(userAddress: string) {
   const [verificationStates, setVerificationStates] = useState<
@@ -56,7 +47,6 @@ export function useAgeVerification(userAddress: string) {
       const result = await generateAgeProof(
         threshold,
         videoId,
-        userAddress,
         mockCredentialProvider
       );
 

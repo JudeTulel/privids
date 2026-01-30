@@ -1,0 +1,8 @@
+{
+  "QmTestCID_1769788188167": {
+    "cid": "QmTestCID_1769788188167",
+    "encryptedKey": "test-encrypted-key",
+    "iv": "test-iv",
+    "ownerAddress": "aleo1parser..."
+  }
+}

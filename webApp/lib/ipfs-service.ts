@@ -22,6 +22,7 @@ export interface StreamingConfig {
 
 class IPFSService {
   private ipfsGateway: string
+  private accessNodeUrl: string = 'http://localhost:3001'
   private chunkCache: Map<string, ChunkData> = new Map()
   private streamingConfig: StreamingConfig = {
     chunkSize: 256 * 1024, // 256KB chunks
@@ -38,6 +39,99 @@ class IPFSService {
    */
   getGatewayUrl(cid: string): string {
     return `${this.ipfsGateway}/ipfs/${cid}`
+  }
+
+  // --- CRYPTO HELPERS ---
+
+  private async generateKey(): Promise<CryptoKey> {
+    return window.crypto.subtle.generateKey(
+      {
+        name: "AES-GCM",
+        length: 256
+      },
+      true,
+      ["encrypt", "decrypt"]
+    );
+  }
+
+  private async exportKey(key: CryptoKey): Promise<string> {
+    const exported = await window.crypto.subtle.exportKey("raw", key);
+    return this.ab2str(exported);
+  }
+
+  private async importKey(keyStr: string): Promise<CryptoKey> {
+    const keyData = this.str2ab(keyStr);
+    return window.crypto.subtle.importKey(
+      "raw",
+      keyData,
+      "AES-GCM",
+      true,
+      ["encrypt", "decrypt"]
+    );
+  }
+
+  private async encryptFile(file: File, key: CryptoKey): Promise<{ encryptedBlob: Blob, iv: string }> {
+    const iv = window.crypto.getRandomValues(new Uint8Array(12));
+    const fileData = await file.arrayBuffer();
+
+    const encryptedFn = await window.crypto.subtle.encrypt(
+      {
+        name: "AES-GCM",
+        iv: iv
+      },
+      key,
+      fileData
+    );
+
+    return {
+      encryptedBlob: new Blob([encryptedFn]),
+      iv: this.ab2str(iv.buffer)
+    };
+  }
+
+  // Utils for ArrayBuffer <-> Base64
+  private ab2str(buf: ArrayBuffer): string {
+    return btoa(String.fromCharCode(...new Uint8Array(buf)));
+  }
+
+  private str2ab(str: string): ArrayBuffer {
+    const buf = new ArrayBuffer(str.length);
+    const bufView = new Uint8Array(buf);
+    for (let i = 0, strLen = str.length; i < strLen; i++) {
+      bufView[i] = str.charCodeAt(i);
+    }
+    return buf;
+  }
+
+  /**
+   * Request Key from Access Node
+   */
+  async requestAccessKey(cid: string, userAddress: string, signature: string): Promise<string | null> {
+    try {
+      const res = await fetch(`${this.accessNodeUrl}/keys/request`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cid, requesterAddress: userAddress, signature })
+      });
+
+      if (!res.ok) throw new Error('Access denied');
+      const data = await res.json();
+      return `${data.iv}:${data.encryptedKey}`; // Return packed format
+    } catch (e) {
+      console.error("Key request failed", e);
+      return null;
+    }
+  }
+
+  /**
+   * Store Key in Access Node (Helper)
+   */
+  async storeAccessKey(cid: string, key: string, iv: string, ownerAddress: string, signature: string) {
+    await fetch(`${this.accessNodeUrl}/keys/store`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cid, encryptedKey: key, iv, ownerAddress, signature })
+    });
   }
 
   /**
@@ -103,7 +197,9 @@ class IPFSService {
       // Limit cache size
       if (this.chunkCache.size > 20) {
         const oldestKey = this.chunkCache.keys().next().value
-        this.chunkCache.delete(oldestKey)
+        if (oldestKey !== undefined) {
+          this.chunkCache.delete(oldestKey)
+        }
       }
 
       return chunkData
@@ -160,13 +256,60 @@ class IPFSService {
     encryptedData: ArrayBuffer,
     encryptionKey: string
   ): Promise<ArrayBuffer> {
-    // Mock implementation - in production use SubtleCrypto API
-    console.log(' Decrypting chunk with key:', encryptionKey.substring(0, 8) + '...')
+    // Decrypt using Web Crypto API
+    try {
+      if (!encryptionKey) return encryptedData;
 
-    // Simulate decryption delay
-    await new Promise((resolve) => setTimeout(resolve, 50))
+      // Import Key
+      const key = await this.importKey(encryptionKey);
 
-    return encryptedData
+      // We need the IV. 
+      // Option A: IV was prepended to the data.
+      // Option B: IV is passed separately.
+      // Since fetchChunk doesn't take IV, we assume we need to fetch it or it's prepended.
+      // Let's assume we fetch the key AND IV from the access node before calling this?
+      // Or we assume IV is prepended to the *file*.
+      // If we are fetching *chunks* of an encrypted file, we can't easily prepend IV to the whole file and expect chunks to align unless we use CTR mode.
+      // GCM is authenticating, so we must decrypt the *entire block*.
+      // For this MVP, we are downloading the WHOLE file in chunks but really mostly assuming one blob for small files 
+      // OR we handle the IV being at the start of chunk 0.
+
+      // SIMPLIFICATION: We assume IV is passed as part of the "encryptionKey" string (delimeter) 
+      // OR we fetch it from Access Node and store it in cache.
+      // Let's try to parse IV from the key string if we packed it? 
+      // Format: "IV_BASE64:KEY_BASE64"
+
+      const parts = encryptionKey.split(':');
+      if (parts.length !== 2) {
+        console.warn("Invalid key format, expected IV:KEY");
+        return encryptedData;
+      }
+
+      const iv = this.str2ab(atob(parts[0]));
+      const rawKey = this.str2ab(atob(parts[1]));
+
+      const cryptoKey = await window.crypto.subtle.importKey(
+        "raw",
+        rawKey,
+        "AES-GCM",
+        true,
+        ["decrypt"]
+      );
+
+      const decrypted = await window.crypto.subtle.decrypt(
+        {
+          name: "AES-GCM",
+          iv: iv
+        },
+        cryptoKey,
+        encryptedData
+      );
+
+      return decrypted;
+    } catch (e) {
+      console.error("Decryption failed:", e);
+      throw e;
+    }
   }
 
   /**
@@ -177,7 +320,15 @@ class IPFSService {
     encryptionKey?: string
   ): Promise<IPFSVideoMetadata> {
     try {
-      console.log(' Uploading video to IPFS:', file.name)
+      // 1. Generate Encryption Key
+      const key = await this.generateKey();
+
+      // 2. Encrypt File
+      const { encryptedBlob, iv } = await this.encryptFile(file, key);
+      const exportedKey = await this.exportKey(key);
+
+      // 3. Upload Encrypted File to IPFS
+      console.log(' Uploading encrypted video to IPFS:', file.name)
 
       const pinataJwt = process.env.NEXT_PUBLIC_PINATA_JWT;
       if (!pinataJwt) {
@@ -185,19 +336,20 @@ class IPFSService {
       }
 
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('file', encryptedBlob, file.name); // Upload encrypted blob
 
       const metadataStr = JSON.stringify({
         name: file.name,
         keyvalues: {
           type: 'video',
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
+          encrypted: 'true'
         }
       });
       formData.append('pinataMetadata', metadataStr);
 
       const optionsStr = JSON.stringify({
-        cidVersion: 1,
+        cidVersion: 1, // CIDv1
       });
       formData.append('pinataOptions', optionsStr);
 
@@ -217,7 +369,9 @@ class IPFSService {
       const resData = await res.json();
       const ipfsHash = resData.IpfsHash;
 
-      // Mock chunk size for now as we don't control chunks with simple pinFileToIPFS unless manual upload
+      // 4. Store Key in Access Node
+      // Note: Caller is responsible for actual storage call with signature
+
       const chunkSize = this.streamingConfig.chunkSize
       const totalChunks = Math.ceil(file.size / chunkSize)
 
@@ -232,7 +386,15 @@ class IPFSService {
       }
 
       console.log(' Video uploaded successfully to Pinata, CID:', ipfsHash)
-      return metadata
+
+      return {
+        ...metadata,
+        // @ts-ignore
+        encryption: {
+          key: exportedKey,
+          iv: iv
+        }
+      }
     } catch (error) {
       console.error(' Upload error:', error)
       throw error
@@ -307,7 +469,7 @@ class IPFSService {
    * For this demo, let's just split the string into two halves and hex encode them to numbers.
    * NOTE: This is a placeholder logic. Real implementation needs robust string->field encoding.
    */
-  public static splitCidToU128(cid: string): { part1: string, part2: string } {
+  public splitCidToU128(cid: string): { part1: string, part2: string } {
     // Very basic Mock implementation for the demo
     // In a real app one might convert the CID to bytes, then to BigInts.
     // Here just returning dummy values or simple numeric hash of the string
