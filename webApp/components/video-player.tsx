@@ -14,19 +14,26 @@ import {
   Settings,
   Loader2,
 } from 'lucide-react'
+import { streamingEncryption } from '@/lib/streaming-encryption'
 
 interface VideoPlayerProps {
-  videoCid: string
+  chunkCids: string[]  // Array of IPFS CIDs for encrypted chunks
   videoTitle: string
   thumbnailUrl: string
   isAgeVerified: boolean
+  encryptionKey?: string  // Retrieved from Access Node
+  chunkIVs?: string[]     // Retrieved from Access Node
+  isEncrypted?: boolean   // Whether video is encrypted
 }
 
 export default function VideoPlayer({
-  videoCid,
+  chunkCids,
   videoTitle,
   thumbnailUrl,
   isAgeVerified,
+  encryptionKey,
+  chunkIVs,
+  isEncrypted = true,
 }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -40,11 +47,57 @@ export default function VideoPlayer({
   const [showControls, setShowControls] = useState(true)
   const [bufferProgress, setBufferProgress] = useState(0)
   const [quality, setQuality] = useState('auto')
+  const [videoUrl, setVideoUrl] = useState<string | null>(null)
+  const [decryptionProgress, setDecryptionProgress] = useState(0)
+  const [error, setError] = useState<string | null>(null)
 
   const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Construct IPFS gateway URL
-  const videoUrl = `https://gateway.pinata.cloud/ipfs/${videoCid}`
+  // Decrypt and prepare video for playback
+  useEffect(() => {
+    async function prepareVideo() {
+      if (!isAgeVerified) return
+
+      try {
+        setIsLoading(true)
+        setError(null)
+
+        // If encrypted, decrypt chunks
+        if (isEncrypted && encryptionKey && chunkIVs) {
+          console.log('🔓 Decrypting video chunks...')
+
+          // Create blob URL from encrypted chunks
+          const url = await streamingEncryption.createBlobVideoUrl(
+            chunkCids,
+            encryptionKey,
+            chunkIVs
+          )
+
+          setVideoUrl(url)
+          console.log('✅ Video decrypted and ready for playback')
+        } else {
+          // Unencrypted video - use first chunk CID directly
+          const url = `https://gateway.pinata.cloud/ipfs/${chunkCids[0]}`
+          setVideoUrl(url)
+          console.log('📹 Unencrypted video loaded')
+        }
+      } catch (err) {
+        console.error('❌ Video preparation failed:', err)
+        setError(err instanceof Error ? err.message : 'Failed to load video')
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    prepareVideo()
+
+    // Cleanup: revoke blob URL when component unmounts
+    return () => {
+      if (videoUrl && videoUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(videoUrl)
+      }
+    }
+  }, [chunkCids, encryptionKey, chunkIVs, isEncrypted, isAgeVerified])
 
   useEffect(() => {
     const video = videoRef.current
@@ -200,25 +253,43 @@ export default function VideoPlayer({
       onMouseLeave={() => setShowControls(false)}
     >
       {/* Video Element */}
-      <video
-        ref={videoRef}
-        src={videoUrl}
-        className="w-full h-full"
-        crossOrigin="anonymous"
-      />
+      {videoUrl && (
+        <video
+          ref={videoRef}
+          src={videoUrl}
+          className="w-full h-full"
+          crossOrigin="anonymous"
+        />
+      )}
+
+      {/* Error Display */}
+      {error && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/80">
+          <div className="text-center p-6">
+            <p className="text-red-400 mb-2">❌ Playback Error</p>
+            <p className="text-white/70 text-sm">{error}</p>
+          </div>
+        </div>
+      )}
 
       {/* Loading Indicator */}
       {isLoading && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-          <Loader2 className="w-12 h-12 text-accent animate-spin" />
+          <div className="text-center">
+            <Loader2 className="w-12 h-12 text-accent animate-spin mx-auto mb-2" />
+            {isEncrypted && (
+              <p className="text-white/70 text-sm">
+                Decrypting video... {decryptionProgress > 0 && `${decryptionProgress}%`}
+              </p>
+            )}
+          </div>
         </div>
       )}
 
       {/* Player Controls */}
       <div
-        className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/50 to-transparent p-4 transition-opacity duration-300 ${
-          showControls ? 'opacity-100' : 'opacity-0'
-        }`}
+        className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/50 to-transparent p-4 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'
+          }`}
       >
         {/* Progress Bar */}
         <div className="space-y-2 mb-4">
@@ -321,9 +392,8 @@ export default function VideoPlayer({
                       setQuality(q)
                       console.log('[v0] Quality changed to:', q)
                     }}
-                    className={`block w-full text-left px-4 py-2 text-xs hover:bg-white/10 ${
-                      quality === q ? 'text-accent' : 'text-white'
-                    }`}
+                    className={`block w-full text-left px-4 py-2 text-xs hover:bg-white/10 ${quality === q ? 'text-accent' : 'text-white'
+                      }`}
                   >
                     {q}
                   </button>

@@ -8,6 +8,29 @@ We don't just "hide" the data; we eliminate the need for the platform to see it.
 
 ---
 
+## Why PriviDocs?
+
+### The Problem: The Algorithm is Eating Culture.
+Web2 video platforms are built on **surveillance capitalism**. Because they rely on ad revenue, their algorithms prioritize "engagement" above all else. This creates a race to the bottom:
+
+1.  **The Volume Trap:** With payouts as low as $0.001 per view, creators are forced to churn out daily, low-effort content just to survive.
+2.  **The AI Sludge:** To feed the algorithm's hunger for volume, the internet is now flooding with low-quality, AI-generated "slop."
+3.  **The Privacy Cost:** Viewers pay with their data, having their psychological profiles sold to the highest bidder while being trapped in echo chambers.
+
+### The Solution: Value Over Views.
+PriviDocs restores sanity to digital media by shifting the incentive structure from **Attention** to **Intention**.
+
+### How PriviDocs Creates Better Content
+By leveraging Aleo’s privacy-preserving architecture, we change *why* content is made:
+
+#### 1. The "Direct-to-Wallet" Quality Shift
+*   **Web2 Model:** Creator makes clickbait $\rightarrow$ You click $\rightarrow$ Advertiser pays Platform $\rightarrow$ Platform pays Creator crumbs.
+*   **PriviDocs Model:** Creator makes something valuable $\rightarrow$ You pay Creator directly (USAD).
+
+**The Result:** When a creator relies on payments rather than clicks, they stop optimizing for the algorithm and start optimizing for the human. One deep, investigative documentary sold for **1 USAD** is worth more than **10,000 views** on YouTube. This funds real journalism and high-effort art.
+
+---
+
 ## 1. The Vision: Why Privacy? Why Now?
 
 PriviDocs is a decentralized, client-side video protocol where access rights are cryptographically enforced but completely private.

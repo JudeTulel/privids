@@ -7,8 +7,8 @@ import { Upload, Plus, Trash2 } from 'lucide-react'
 import UploadForm from '@/components/upload-form'
 import VideoUploadCard from '@/components/video-upload-card'
 
-import { ipfsService } from '@/lib/ipfs-service'
-import { publishVideoOnChain } from '@/services/contract'
+import { streamingEncryption } from '@/lib/streaming-encryption'
+import { publishVideoOnChain, cidToU128Parts } from '@/services/contract'
 import { useWallet } from '@/components/wallet-provider'
 import { Transaction, WalletAdapterNetwork } from '@demox-labs/aleo-wallet-adapter-base'
 
@@ -54,54 +54,108 @@ export default function CreatorDashboard() {
     setUploadError(null)
 
     try {
-      // 1. Upload to IPFS via Pinata
-      console.log("1. Uploading to IPFS...", videoData.file.name);
-      const encryptionKey = "demo-encryption-key-123";
-      const metadata = await ipfsService.uploadVideo(videoData.file, encryptionKey);
+      console.log("📦 Step 1: Encrypting video in chunks...");
 
-      console.log("IPFS Upload complete. CID:", metadata.cid);
+      // 1. Encrypt video in chunks
+      const { encryptedChunks, metadata } = await streamingEncryption.encryptFileInChunks(videoData.file);
+      console.log(`✅ Encrypted ${encryptedChunks.length} chunks`);
 
-      // 2. Prepare transaction data
-      const { part1, part2 } = ipfsService.splitCidToU128(metadata.cid);
-
-      // 3. Publish to Chain using Standard Adapter
-      console.log("2. Requesting Wallet Signature...");
-
-      const transaction = Transaction.createTransaction(
-        publicKey,
-        WalletAdapterNetwork.Testnet,
-        'prividocs_v1.aleo', // Your program ID
-        'publish_video',     // Your transition name
-        [
-          `${Math.floor(Math.random() * 1000000)}field`, // video_id (random for demo)
-          `10u64`,                                        // price (default 10)
-          part1,                                          // cid_part1
-          part2                                           // cid_part2
-        ],
-        1_000_000 // Fee (1 credit)
-      )
-
-      if (!wallet.adapter.requestTransaction) {
-        throw new Error("Wallet does not support transaction requests")
+      // 2. Upload each encrypted chunk to IPFS via Pinata
+      console.log("📤 Step 2: Uploading chunks to IPFS...");
+      const pinataJwt = process.env.NEXT_PUBLIC_PINATA_JWT;
+      if (!pinataJwt) {
+        throw new Error('Pinata JWT not found. Please set NEXT_PUBLIC_PINATA_JWT in .env.local');
       }
 
-      const txId = await wallet.adapter.requestTransaction(transaction)
-      console.log("Transaction ID:", txId)
+      const chunkCids: string[] = [];
 
+      for (let i = 0; i < encryptedChunks.length; i++) {
+        const chunk = encryptedChunks[i];
+        const formData = new FormData();
+        const blob = new Blob([chunk.encryptedData]);
+        formData.append('file', blob, `chunk_${i}.enc`);
+
+        const metadataStr = JSON.stringify({
+          name: `${videoData.title}_chunk_${i}`,
+          keyvalues: {
+            type: 'video_chunk',
+            chunkIndex: i.toString(),
+            encrypted: 'true'
+          }
+        });
+        formData.append('pinataMetadata', metadataStr);
+
+        const optionsStr = JSON.stringify({ cidVersion: 1 });
+        formData.append('pinataOptions', optionsStr);
+
+        const res = await fetch("https://api.pinata.cloud/pinning/pinFileToIPFS", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${pinataJwt}` },
+          body: formData,
+        });
+
+        if (!res.ok) {
+          throw new Error(`Chunk ${i} upload failed: ${res.status}`);
+        }
+
+        const resData = await res.json();
+        chunkCids.push(resData.IpfsHash);
+        console.log(`✅ Uploaded chunk ${i + 1}/${encryptedChunks.length}: ${resData.IpfsHash}`);
+      }
+
+      // 3. Publish to blockchain
+      console.log("⛓️ Step 3: Publishing to blockchain...");
+      const videoId = `${Date.now()}field`;
+      const price = 100; // 100 credits default
+
+      const txId = await publishVideoOnChain(
+        videoId,
+        price,
+        chunkCids,
+        wallet.adapter as any
+      );
+
+      console.log("✅ Transaction ID:", txId);
+
+      // 4. Store encryption metadata in Access Node
+      console.log("🔐 Step 4: Storing encryption keys in Access Node...");
+      try {
+        const accessNodeUrl = process.env.NEXT_PUBLIC_ACCESS_NODE_URL || 'http://localhost:3001';
+        await fetch(`${accessNodeUrl}/keys/store`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            videoId: videoId,
+            encryptionKey: metadata.key,
+            chunkIVs: metadata.chunkIVs,
+            ownerAddress: publicKey,
+            chunkCids: chunkCids
+          })
+        });
+        console.log("✅ Encryption metadata stored");
+      } catch (err) {
+        console.warn("⚠️ Failed to store encryption metadata:", err);
+        // Non-fatal - continue
+      }
+
+      // 5. Update UI
       const newVideo = {
-        id: metadata.cid,
+        id: videoId,
         title: videoData.title,
         description: videoData.description,
         ageRestriction: videoData.ageRestriction,
         thumbnail: 'https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?w=300&h=200&fit=crop',
         duration: '0:00',
+        chunkCids: chunkCids,
       }
       setUploadedVideos([newVideo, ...uploadedVideos])
       setShowUploadForm(false)
 
+      console.log("🎉 Upload complete!");
+
     } catch (error: any) {
-      console.error("Chain Error:", error);
-      setUploadError(error.message || "Transaction failed");
+      console.error("❌ Upload Error:", error);
+      setUploadError(error.message || "Upload failed");
     } finally {
       setIsUploading(false);
     }
