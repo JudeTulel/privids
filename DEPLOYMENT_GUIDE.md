@@ -21,20 +21,19 @@ const PLATFORM_ADDRESS: address = aleo1your_actual_address_here;
 
 Edit `webApp/.env.local`:
 ```bash
-# Your deployed contract address
+# deployed contract address
 NEXT_PUBLIC_PROGRAM_ID=prividocs_v1.aleo
 
 # Network
-NEXT_PUBLIC_NETWORK=testnet  # Change to 'mainnet' for production
+NEXT_PUBLIC_NETWORK=testnet  
 
 # Payment token
-NEXT_PUBLIC_PAYMENT_TOKEN=credits.aleo  # Change to 'usad.aleo' for production
-
+NEXT_PUBLIC_PAYMENT_TOKEN=credits.aleo  # Will be Changed to 'usad' 0n mainnet
 # Your platform wallet (receives 2% fee)
 NEXT_PUBLIC_PLATFORM_ADDRESS=aleo1your_address_here
 
 # Pinata IPFS
-NEXT_PUBLIC_PINATA_JWT=your_pinata_jwt
+NEXT_PUBLIC_PINATA_JWT=pinata_jwt
 NEXT_PUBLIC_PINATA_GATEWAY=https://gateway.pinata.cloud
 
 # Access Node
@@ -70,11 +69,12 @@ snarkos developer deploy \
     --fee 1000000 \
     --record RECORD_STRING
 ```
-
-**Note:** Replace:
-- `YOUR_PRIVATE_KEY` - Your Aleo private key
-- `RECORD_STRING` - A credits record with enough balance
-
+```bash
+leo deploy \
+    --private-key YOUR_PRIVATE_KEY \
+    --network testnet \
+    --fee 1000000 \
+    --record RECORD_STRING
 ### Step 4: Verify Deployment
 
 Check on Aleo Explorer:
@@ -134,11 +134,10 @@ leo build
 ### Step 4: Deploy to Mainnet
 
 ```bash
-snarkos developer deploy \
+# Using Leo CLI
+leo deploy \
     --private-key YOUR_MAINNET_PRIVATE_KEY \
-    --query https://api.explorer.aleo.org/v1 \
-    --path ./build \
-    --broadcast https://api.explorer.aleo.org/v1/mainnet/transaction/broadcast \
+    --network mainnet \
     --fee 5000000 \
     --record MAINNET_RECORD_STRING
 ```
@@ -183,11 +182,9 @@ vercel deploy --prod
 
 Query the blockchain:
 ```bash
-# Get total fees collected
-snarkos developer execute \
-    --query https://api.explorer.aleo.org/v1 \
-    prividocs_v1.aleo \
-    get_total_fees
+# Get total fees collected using Leo CLI
+leo execute prividocs_v1.aleo get_total_fees \
+    --network testnet
 ```
 
 ### Monitor Transactions
@@ -225,7 +222,7 @@ Check:
 
 - **Aleo Docs:** https://developer.aleo.org
 - **Leo Guide:** https://developer.aleo.org/leo
-- **snarkOS CLI:** https://developer.aleo.org/testnet/getting_started/deploy_execute
+- **Leo CLI Commands:** https://developer.aleo.org/leo/commands
 - **Explorer:** https://explorer.aleo.org
 - **Faucet:** https://faucet.aleo.org
 
@@ -252,6 +249,9 @@ Program ID: prividocs_v1.aleo
 Token: credits.aleo
 Network: testnet
 Cost: Free (faucet)
+
+# Deploy command:
+leo deploy --private-key <KEY> --network testnet --fee 1000000 --record <RECORD>
 ```
 
 **For Mainnet (Later):**
@@ -260,6 +260,9 @@ Program ID: prividocs_v2.aleo (or v1)
 Token: usad.aleo (or credits.aleo)
 Network: mainnet
 Cost: Real money
+
+# Deploy command:
+leo deploy --private-key <KEY> --network mainnet --fee 5000000 --record <RECORD>
 ```
 
 Good luck with your deployment! 🚀

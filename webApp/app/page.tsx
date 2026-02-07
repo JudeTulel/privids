@@ -4,7 +4,6 @@ import Header from '@/components/header'
 import Hero from '@/components/hero'
 import VideoGrid from '@/components/video-grid'
 import Footer from '@/components/footer'
-import { WalletProvider } from '@/components/wallet-provider'
 
 export default function Home() {
   return (

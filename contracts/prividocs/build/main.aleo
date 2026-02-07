@@ -24,6 +24,13 @@ mapping total_fees_collected:
     key as u8.public;
     value as u64.public;
 
+function initialize_contract:
+    async initialize_contract into r0;
+    output r0 as prividocs_v1.aleo/initialize_contract.future;
+
+finalize initialize_contract:
+    set 0u64 into total_fees_collected[0u8];
+
 function publish_video:
     input r0 as field.public;
     input r1 as u64.public;
@@ -48,22 +55,24 @@ finalize publish_video:
     set r8 into videos[r1];
 
 function buy_access:
-    input r0 as field.public;
-    input r1 as address.public;
-    input r2 as u64.public;
-    input r3 as credits.aleo/credits.record;
-    mul r2 2u64 into r4;
-    div r4 100u64 into r5;
-    sub r2 r5 into r6;
-    call credits.aleo/transfer_private r3 aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc r5 into r7 r8;
-    call credits.aleo/transfer_private r8 r1 r6 into r9 r10;
-    cast self.caller r0 1u64 into r11 as AccessCard.record;
-    async buy_access r0 r1 r2 r5 into r12;
-    output r11 as AccessCard.record;
-    output r7 as credits.aleo/credits.record;
-    output r9 as credits.aleo/credits.record;
+    input r0 as address.public;
+    input r1 as field.public;
+    input r2 as address.public;
+    input r3 as u64.public;
+    input r4 as credits.aleo/credits.record;
+    assert.eq r0 self.caller;
+    mul r3 2u64 into r5;
+    div r5 100u64 into r6;
+    sub r3 r6 into r7;
+    call credits.aleo/transfer_private r4 aleo1te9n6c7m9xkqmq2f8zc2xjj69t69jt64vmmnm0s0hyrupsauugqsdpqe74 r6 into r8 r9;
+    call credits.aleo/transfer_private r9 r2 r7 into r10 r11;
+    cast r0 r1 1u64 into r12 as AccessCard.record;
+    async buy_access r1 r2 r3 r6 into r13;
+    output r12 as AccessCard.record;
+    output r8 as credits.aleo/credits.record;
     output r10 as credits.aleo/credits.record;
-    output r12 as prividocs_v1.aleo/buy_access.future;
+    output r11 as credits.aleo/credits.record;
+    output r13 as prividocs_v1.aleo/buy_access.future;
 
 finalize buy_access:
     input r0 as field.public;

@@ -2,8 +2,7 @@
 
 ## 🔐 The Challenge: Encryption vs Streaming
 
-### **Traditional Encryption (Your Current Setup)**
-
+### **Traditional Encryption 
 **Problem:** AES-GCM encrypts the ENTIRE file as one block.
 
 ```
@@ -38,20 +37,7 @@ Encrypt each 5MB chunk **independently** with its own IV (Initialization Vector)
 └──────────┘ └──────────┘ └──────────┘ └──────────┘
 ```
 
-**Benefits:**
-- ✅ Stream chunks as they arrive
-- ✅ Random access (seek to any chunk)
-- ✅ Low memory footprint
-- ✅ Instant playback start
-- ✅ Progressive download
 
----
-
-## 🏗️ Architecture Overview
-
-### **Upload Flow (Creator)**
-
-```
 1. Video File (100MB)
    ↓
 2. Split into chunks (20 chunks × 5MB)
@@ -235,112 +221,5 @@ User can decrypt and watch
 
 ---
 
-## 🚀 Migration Path
 
-### **Current State (Full-File Encryption)**
-```typescript
-// ipfs-service.ts (lines 73-90)
-const { encryptedBlob, iv } = await this.encryptFile(file, key);
-// ❌ Encrypts entire file
-```
 
-### **New State (Per-Chunk Encryption)**
-```typescript
-// streaming-encryption.ts
-const { encryptedChunks, metadata } = await streamingEncryption.encryptFileInChunks(file);
-// ✅ Encrypts each chunk independently
-```
-
-### **Migration Steps**
-
-1. **Update Upload Flow**
-   - Replace `encryptFile()` with `encryptFileInChunks()`
-   - Upload each encrypted chunk to IPFS separately
-   - Store chunk CIDs on blockchain
-   - Store encryption key + IVs in Access Node
-
-2. **Update Access Node**
-   - Add endpoint to store/retrieve IVs array
-   - Update key storage to include IVs
-
-3. **Update Playback Flow**
-   - Fetch chunk CIDs from blockchain
-   - Fetch encryption key + IVs from Access Node
-   - Use `streamDecryptedChunks()` for progressive playback
-
-4. **Test**
-   - Upload test video
-   - Verify streaming works
-   - Check memory usage
-   - Test seeking/skipping
-
----
-
-## 💡 Best Practices
-
-### **Chunk Size Selection**
-- **5MB**: ✅ Good balance (recommended)
-- **1MB**: ⚠️ Too many chunks, high overhead
-- **10MB**: ⚠️ Slower initial playback
-
-### **Buffering Strategy**
-- Buffer 3-5 chunks ahead
-- Pre-fetch next chunk while playing current
-- Clear old chunks from memory
-
-### **Error Handling**
-- Retry failed chunk downloads (3 attempts)
-- Skip corrupted chunks gracefully
-- Show user-friendly error messages
-
-### **Optimization**
-- Parallel chunk downloads (2-3 at a time)
-- Cache decrypted chunks in memory
-- Use Web Workers for decryption (offload from main thread)
-
----
-
-## 🎯 Recommended Approach
-
-For **PriviDocs**, I recommend:
-
-1. **Use per-chunk encryption** (streaming-encryption.ts)
-2. **5MB chunk size** (matches your blockchain limit)
-3. **Blob URL strategy** for MVP (simpler)
-4. **Upgrade to MediaSource** for production (better UX)
-
-This gives you:
-- ✅ True streaming capability
-- ✅ Works with your 32-chunk limit
-- ✅ Maintains strong encryption
-- ✅ Great user experience
-
----
-
-## 📝 Next Steps
-
-1. ✅ Review `streaming-encryption.ts` implementation
-2. ⬜ Update `ipfs-service.ts` to use per-chunk encryption
-3. ⬜ Update Access Node to store IVs
-4. ⬜ Update video player component
-5. ⬜ Test with real videos
-6. ⬜ Deploy and verify
-
----
-
-## ❓ FAQ
-
-**Q: Is per-chunk encryption as secure as full-file encryption?**  
-A: Yes! Each chunk uses AES-256-GCM, which is industry-standard encryption. The only difference is granularity.
-
-**Q: Can someone decrypt chunks without the key?**  
-A: No. Without the encryption key, the chunks are just random data.
-
-**Q: What if someone has chunk 5 but not the key?**  
-A: They can't decrypt it. Each chunk requires both the key AND its specific IV.
-
-**Q: Can I seek to the middle of a video?**  
-A: Yes! Just fetch and decrypt the chunk at that timestamp. No need to download earlier chunks.
-
-**Q: What about bandwidth costs?**  
-A: Same as before. You're still downloading the same amount of data, just in a streamable format.

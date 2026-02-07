@@ -10,7 +10,7 @@ const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: 'Aleo Privacy Video Platform',
-  description: 'End-to-end encrypted video streaming powered by Aleo zero-knowledge proofs',
+  description: 'End-to-end encrypted private video streaming powered by Aleo zero-knowledge proofs',
   generator: 'v0.app',
   icons: {
     icon: [
